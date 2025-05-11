@@ -1,7 +1,7 @@
 const { Router } = require("express");
 const adminmiddleware = require("../middlewares/admin");
 const adminRouter = Router();
-const { adminModel } = require("../db");
+const { adminModel, courseModel } = require("../db");
 adminRouter.post("/signup", function (req, res) {
   const { email, password, firstName, lastName } = req.body;
 
@@ -87,8 +87,12 @@ adminRouter.put("/course", adminmiddleware, function (req, res) {
   });
 });
 adminRouter.post("/course", adminmiddleware, function (req, res) {
-  res.json({
-    message: "done",
-  });
+    const {title , description , price , imageUrl , creatorId} = req.body;
+
+    const newCourse = new courseModel({
+        title , description,price,imageUrl,creatorId
+    });
+
+    
 });
 module.exports = adminRouter;
