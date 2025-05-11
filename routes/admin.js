@@ -1,12 +1,8 @@
-const Router = require("express");
-const { z } = require("zod");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const { userModel } = require("../db");
-const usermiddleware = require("../middlewares/user.js");
-const userRouter = Router();
-
-userRouter.post("/signup", function (req, res) {
+const { Router } = require("express");
+const adminmiddleware = require("../middlewares/admin");
+const adminRouter = Router();
+const { adminModel } = require("../db");
+adminRouter.post("/signup", function (req, res) {
   const { email, password, firstName, lastName } = req.body;
 
   const requiredSchema = z.object({
@@ -22,7 +18,7 @@ userRouter.post("/signup", function (req, res) {
     lastName: z.string().min(3),
   });
 
-  const result  = requiredSchema.safeParse({
+  const result = requiredSchema.safeParse({
     email,
     password,
     firstName,
@@ -40,7 +36,7 @@ userRouter.post("/signup", function (req, res) {
     if (err) throw err;
     bcrypt.hash(password, salt, function (err, hashpassword) {
       if (err) throw err;
-      const newUser = new userModel({
+      const newAdmin = new adminModel({
         email,
         password: hashpassword,
         firstName,
@@ -62,13 +58,12 @@ userRouter.post("/signup", function (req, res) {
     });
   });
 });
-
-userRouter.post("/signin", async function (req, res) {
+adminRouter.post("/signin", async function (req, res) {
   const { email, password } = req.body;
 
-  const user = await userModel.findOne({ email });
-  if (!user) {
-    return res.status(400).json({ message: "User not found" });
+  const admin = await adminModel.findOne({ email });
+  if (!admin) {
+    return res.status(400).json({ message: "Admin not found" });
   }
 
   const passwordMatch = await bcrypt.compare(password, user.password);
@@ -76,18 +71,24 @@ userRouter.post("/signin", async function (req, res) {
     return res.status(400).json({ message: "Invalid credentials" });
   }
 
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_USER_SECRET);
+  const token = jwt.sign({ adminId: admin._id }, process.env.JWT_ADMIN_SECRET);
 
   res.json({
     message: "Login successful",
     token,
   });
 });
+adminRouter.get("/course/bulk", adminmiddleware, function (req, res) {
 
-userRouter.get("/purchases",usermiddleware,function (req, res) {
+});
+adminRouter.put("/course", adminmiddleware, function (req, res) {
   res.json({
     message: "done",
   });
 });
-
-module.exports = userRouter;
+adminRouter.post("/course", adminmiddleware, function (req, res) {
+  res.json({
+    message: "done",
+  });
+});
+module.exports = adminRouter;
