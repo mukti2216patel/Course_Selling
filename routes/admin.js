@@ -1,11 +1,16 @@
 const { Router } = require("express");
 const adminmiddleware = require("../middlewares/admin");
-const adminRouter = Router();
 const { adminModel, courseModel } = require("../db");
-adminRouter.post("/signup", function (req, res) {
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { z } = require("zod");
+
+const adminRouter = Router();
+
+adminRouter.post("/signup", (req, res) => {
   const { email, password, firstName, lastName } = req.body;
 
-  const requiredSchema = z.object({
+  const schema = z.object({
     email: z.string().min(14).max(32).email(),
     password: z
       .string()
@@ -18,12 +23,7 @@ adminRouter.post("/signup", function (req, res) {
     lastName: z.string().min(3),
   });
 
-  const result = requiredSchema.safeParse({
-    email,
-    password,
-    firstName,
-    lastName,
-  });
+  const result = schema.safeParse({ email, password, firstName, lastName });
 
   if (!result.success) {
     return res.status(400).json({
@@ -32,67 +32,85 @@ adminRouter.post("/signup", function (req, res) {
     });
   }
 
-  bcrypt.genSalt(4, function (err, salt) {
-    if (err) throw err;
-    bcrypt.hash(password, salt, function (err, hashpassword) {
-      if (err) throw err;
+  bcrypt.genSalt(4, (err, salt) => {
+    bcrypt.hash(password, salt, (err, hashedPassword) => {
       const newAdmin = new adminModel({
         email,
-        password: hashpassword,
+        password: hashedPassword,
         firstName,
         lastName,
       });
-      newUser
+      newAdmin
         .save()
-        .then(() => {
-          res.json({
-            message: "Registration Successful",
-          });
-        })
+        .then(() => res.json({ message: "Registration successful" }))
         .catch((error) => {
-          console.log(error);
-          res.status(500).json({
-            message: "Not Successful",
-          });
+          console.error(error);
+          res.status(500).json({ message: "Registration failed" });
         });
     });
   });
 });
-adminRouter.post("/signin", async function (req, res) {
+
+adminRouter.post("/signin", async (req, res) => {
   const { email, password } = req.body;
 
   const admin = await adminModel.findOne({ email });
-  if (!admin) {
-    return res.status(400).json({ message: "Admin not found" });
-  }
+  if (!admin) return res.status(400).json({ message: "Admin not found" });
 
-  const passwordMatch = await bcrypt.compare(password, user.password);
-  if (!passwordMatch) {
-    return res.status(400).json({ message: "Invalid credentials" });
-  }
+  const isMatch = await bcrypt.compare(password, admin.password);
+  if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
   const token = jwt.sign({ adminId: admin._id }, process.env.JWT_ADMIN_SECRET);
 
-  res.json({
-    message: "Login successful",
-    token,
-  });
+  res.json({ message: "Login successful", token });
 });
-adminRouter.get("/course/bulk", adminmiddleware, function (req, res) {
 
-});
-adminRouter.put("/course", adminmiddleware, function (req, res) {
-  res.json({
-    message: "done",
-  });
-});
-adminRouter.post("/course", adminmiddleware, function (req, res) {
-    const {title , description , price , imageUrl , creatorId} = req.body;
-
-    const newCourse = new courseModel({
-        title , description,price,imageUrl,creatorId
+adminRouter.get("/course/bulk", adminmiddleware,async (req, res) => {
+    const adminId = req.adminId;
+    const allcourse = await courseModel.find({creatorId : adminId});
+    res.json({
+      course:allcourse
     });
-
-    
 });
+
+adminRouter.put("/course", adminmiddleware, async (req, res) => {
+  const { title, description, price, imageUrl, courseId } = req.body;
+  const adminId = req.adminId;
+
+  try {
+    const result = await courseModel.updateOne(
+      { _id: courseId, creatorId: adminId },
+      { title, description, price, imageUrl }
+    );
+    res.json({
+      result:result
+    })
+  } catch (err) {
+    res.status(500).json({ message: "Error updating course" });
+  }
+});
+
+adminRouter.post("/course", adminmiddleware, (req, res) => {
+  const { title, description, price, imageUrl } = req.body;
+  const adminId = req.adminId;
+
+  const newCourse = new courseModel({
+    title,
+    description,
+    price,
+    imageUrl,
+    creatorId: adminId,
+  });
+
+  newCourse.save().then(() => {
+      res.json({
+        message: "Course created",
+        courseId: newCourse._id,
+      });
+    }).catch((err) => {
+      console.error(err);
+      res.status(500).json({ message: "Failed to create course" });
+    });
+});
+
 module.exports = adminRouter;

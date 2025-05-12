@@ -2,7 +2,7 @@ const Router = require("express");
 const { z } = require("zod");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { userModel } = require("../db");
+const { userModel, courseModel, purchaseModel } = require("../db");
 const usermiddleware = require("../middlewares/user.js");
 const userRouter = Router();
 
@@ -22,7 +22,7 @@ userRouter.post("/signup", function (req, res) {
     lastName: z.string().min(3),
   });
 
-  const result  = requiredSchema.safeParse({
+  const result = requiredSchema.safeParse({
     email,
     password,
     firstName,
@@ -84,10 +84,21 @@ userRouter.post("/signin", async function (req, res) {
   });
 });
 
-userRouter.get("/purchases",usermiddleware,function (req, res) {
-  res.json({
-    message: "done",
+userRouter.get("/purchases", usermiddleware, async function (req, res) {
+  const userId = req.userId;
+  const purchases = await purchaseModel.find({ userId: userId });
+  const allcourse = await courseModel.find({
+    _id: purchases.map((x) => x.courseId),
   });
+  if (newuser) {
+    res.json({
+      allcourse,
+    });
+  } else {
+    res.json({
+      message: "not done",
+    });
+  }
 });
 
 module.exports = userRouter;
